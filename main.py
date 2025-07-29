@@ -1,38 +1,66 @@
-from fastapi import FastAPI, HTTPException, status
-from typing import List, Dict, Any
-from datetime import datetime
-from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
-from celery_app import app as celery_app, send_welcome_email
+from fastapi import FastAPI
+
+from celery_app import celery_app_instance
+from tasks import send_welcome_email, process_large_data
 
 
 app = FastAPI(
-    title="FastAPI Celery Async Tasks",
-    description="A simple FastAPI app, for asnyc task process with Celery and Redis.",
-    version="1.0.0"
+    title='FastAPI Celery Async Tasks',
+    description='A simple FastAPI app, for asnyc task process with Celery and Redis.',
+    version='1.0.0'
 )
 
 
-@app.get("/", summary="API Root Greeting")
+class TaskResponse(BaseModel):
+    task_id: str
+    status: str
+    message: str = 'Task successfully queued.'
+
+
+class EmailRequest(BaseModel):
+    email: str
+
+
+class DataProcessRequest(BaseModel):
+    data_id: int
+
+
+@app.get('/')
 async def root():
-    return {"message": "Welcome to the FastAPI Celery Demo! Visit /docs for more info."}
+    return {'message': 'Welcome to the FastAPI Celery Demo! Visit /docs for more info.'}
 
 
-@app.post("/send-async-email", status_code=status.HTTP_202_ACCEPTED, summary="Trigger async email sending")
-async def trigger_async_email(email: str = "test@example.com"):
-    task = send_welcome_email.delay(email)
-    return {"message": f"Email sending task initiated for {email}", "task_id": task.id}
+@app.post('/send-async-email', response_model=TaskResponse)
+def trigger_send_email_task(request: EmailRequest):
+    task = send_welcome_email.delay(request.email)
+    return TaskResponse(task_id=task.id, status='QUEUED')
 
 
-@app.get("/task-status/{task_id}", summary="Get Celery task status")
-async def get_celery_task_status(task_id: str):
-    task_result = celery_app.AsyncResult(task_id)
-    response_data = {
-        "task_id": task_id,
-        "status": task_result.status
-    }
-    if task_result.ready():
-        response_data["result"] = task_result.get()
-    elif task_result.state == 'FAILURE':
-        response_data["error"] = str(task_result.info)
-    return response_data
+@app.post('/process-data', response_model=TaskResponse)
+def trigger_process_data_task(request: DataProcessRequest):
+    task = process_large_data.delay(request.data_id)
+    return TaskResponse(task_id=task.id, status='QUEUED')
+
+
+@app.get('/task-status/{task_id}')
+async def get_task_status(task_id: str):
+    task = celery_app_instance.AsyncResult(task_id)
+    if task.state == 'PENDING':
+        response = {
+            'status': task.state,
+            'result': 'Task is pending or has not started yet.'
+        }
+    elif task.state == 'FAILURE':
+        response = {
+            'status': task.state,
+            'result:': str(task.result),
+            'traceback': task.traceback
+        }
+    else:
+        response = {
+            'status': task.state,
+            'result': task.result
+        }
+    return response
