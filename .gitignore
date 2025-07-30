@@ -1,5 +1,6 @@
 venv_fastapi-celery-tasks/
 __pycache__/
+celerybeat-schedule
 
 .env
 .dockerignore
