@@ -2,8 +2,8 @@ from pydantic import BaseModel
 
 from fastapi import FastAPI
 
-from celery_app import celery_app_instance
-from tasks import send_welcome_email, process_large_data
+from app.celery_app import celery_app_instance
+from app.tasks import send_welcome_email, process_large_data
 
 
 app = FastAPI(

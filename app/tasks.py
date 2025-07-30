@@ -1,6 +1,6 @@
 import time
 
-from celery_app import celery_app_instance as app
+from app.celery_app import celery_app_instance as app
 
 
 @app.task(name='send_welcome_email')

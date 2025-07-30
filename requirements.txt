@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 celery
 redis
+flower==2.0.1

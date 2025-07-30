@@ -11,6 +11,8 @@ celery_app_instance = Celery(
     backend=redis_backend_url
 )
 
+celery_app_instance.autodiscover_tasks(['app.tasks'])
+
 celery_app_instance.conf.update(
     task_track_started=True,
     task_acks_late=True,
