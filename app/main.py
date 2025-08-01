@@ -1,7 +1,9 @@
+import os
 from pydantic import BaseModel
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from celery import chain, group
+from dotenv import load_dotenv
 
 from app.celery_app import celery_app_instance as celery_app
 from app.tasks import (
@@ -11,8 +13,12 @@ from app.tasks import (
     task2,
     task3,
     long_running_task,
-    process_item
+    process_item,
+    get_current_weather
 )
+
+
+load_dotenv()
 
 
 app = FastAPI(
@@ -34,6 +40,42 @@ class EmailRequest(BaseModel):
 
 class DataProcessRequest(BaseModel):
     data_id: int
+
+
+class WeatherRequest(BaseModel):
+    city: str
+
+
+@app.post('/get-weather', response_model=TaskResponse)
+def trigger_get_weather_task(request: WeatherRequest):
+    api_key = os.getenv('OPENWEATHER_API_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key is not set in environment variables.")
+        
+    task = get_current_weather.delay(request.city, api_key)
+    return TaskResponse(task_id=task.id, status='QUEUED')
+    
+
+@app.get('/task-status/{task_id}')
+async def get_task_status(task_id: str):
+    task = celery_app.AsyncResult(task_id)
+    if task.state == 'PENDING':
+        response = {
+            'status': task.state,
+            'result': 'Task is pending or has not started yet.'
+        }
+    elif task.state == 'FAILURE':
+        response = {
+            'status': task.state,
+            'result': str(task.result),
+            'traceback': task.traceback
+        }
+    else:
+        response = {
+            'status': task.state,
+            'result': task.result
+        }
+    return response
 
 
 @app.get('/')

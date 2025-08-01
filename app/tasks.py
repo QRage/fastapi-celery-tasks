@@ -1,4 +1,5 @@
 import time
+import requests
 from datetime import datetime
 
 from app.celery_app import celery_app_instance as app
@@ -63,3 +64,30 @@ def long_running_task(duration: int):
 def process_item(item_id: int):
     time.sleep(1)
     return f'Item {item_id} processed'
+
+
+@app.task
+def get_current_weather(city: str, api_key: str):
+    """
+    Simulates fetching current weather data for a given city from OpenWeatherMap.
+    """
+    print(f"Fetching weather for {city}...")
+    
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        weather_data = response.json()
+        
+        temperature = weather_data['main']['temp']
+        description = weather_data['weather'][0]['description']
+        
+        result_message = f"Weather in {city}: {description}, {temperature}°C."
+        print(result_message)
+        
+        return result_message
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch weather data: {e}")
+        return f"Error: Failed to fetch weather data for {city}."
